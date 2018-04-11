@@ -1,0 +1,93 @@
+#!/bin/bash
+
+yum -y install curl sudo
+yum -y install epel-release
+
+curl --silent --location https://rpm.nodesource.com/setup_6.x | sudo bash -
+yum -y install nodejs
+
+yum -y install gcc-c++ make
+
+firewall-cmd --permanent --zone=public --add-port=3000/tcp
+firewall-cmd --reload
+
+echo SELinux=disabled > /etc/sysconfig/selinux
+echo SELINUXTYPE=targeted >> /etc/sysconfig/selinux
+setenforce 0
+
+yum -y install wget
+yum update -y nss curl libcurl
+yum -y install git
+
+npm install express
+npm install
+
+git clone https://github.com/mjastad/uptick.git
+
+mkdir /usr/share/nodejs
+mkdir /usr/share/nodejs/projects
+
+cd /usr/share/nodejs/projects
+git clone https://github.com/mjastad/uptick.git
+
+mkdir /usr/share/nodejs/uptick
+cd /usr/share/nodejs/projects/uptick
+mv routes ../../uptick
+mv models ../../uptick
+mv js ../../uptick
+mv config ../../uptick
+mv databases ../../uptick
+mv server.js ../../uptick
+mv package.json ../../uptick
+chmod -R 755 ../../uptick/*
+
+cd /usr/share/nodejs/uptick/js
+mv data.js data.js.bak
+cat data.js.bak | sed -e 's/NODE_SERVER_IP_ADDRESS/@@{nodejs.address}@@/g' > data.js
+
+cd /usr/share/nodejs/uptick/config
+
+echo "var mysql = require('mysql');" > mysqlConfig.js
+echo " " >> mysqlConfig.js
+echo "var mysqlConnection = mysql.createConnection({" >> mysqlConfig.js
+echo "   host: \"@@{mysql.address}@@\"," >> mysqlConfig.js
+#echo "   host: \"10.21.81.120\"," >> mysqlConfig.js
+#echo "   host: \"10.21.81.68\"," >> mysqlConfig.js
+echo "   user: \"root\"," >> mysqlConfig.js
+#echo "   password: \"nutanix/4U2018\"," >> mysqlConfig.js
+echo "   password: \"nutanix/4u\"," >> mysqlConfig.js
+echo "   database: \"Uptick\"" >> mysqlConfig.js
+echo "});" >> mysqlConfig.js
+echo " " >> mysqlConfig.js
+echo "mysqlConnection.connect(function(err) {" >> mysqlConfig.js
+echo "    if (err) throw err;" >> mysqlConfig.js
+echo "});" >> mysqlConfig.js
+echo " " >> mysqlConfig.js
+echo "module.exports = mysqlConnection;" >> mysqlConfig.js
+
+sleep 30s
+npm install
+
+cd /usr/share/nodejs/uptick
+echo "#!/bin/bash" > start-uptick.sh
+echo " " >> start-uptick.sh
+echo "cd /usr/share/nodejs/uptick" >> start-uptick.sh
+echo "node server.js" >> start-uptick.sh
+
+cd /etc/systemd/system
+echo "[Unit]" > uptick.service
+echo "Description=Uptick Server" >> uptick.service
+echo " " >> uptick.service
+echo "[Service]"  >> uptick.service
+echo "ExecStart=/usr/bin/node /usr/share/nodejs/uptick/server.js" >> uptick.service
+echo "WorkingDirectory=/usr/share/nodejs/uptick" >> uptick.service
+echo "Restart=always" >> uptick.service
+echo " RestartSec=10" >> uptick.service
+echo " " >> uptick.service
+echo "[Install]" >> uptick.service
+echo "WantedBy=multi-user.target" >> uptick.service
+
+systemctl daemon-reload
+systemctl enable uptick.service
+systemctl start uptick.service
+
