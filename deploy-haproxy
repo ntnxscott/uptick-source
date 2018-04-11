@@ -33,9 +33,9 @@ defaults
     timeout check           10s
     maxconn                 3000
 
-frontend www
-	bind *:80
-	default_backend www-main
+frontend api
+	bind *:3000
+	default_backend qpi-main
 
-backend www-main
+backend api-main
 	balance roundrobin
